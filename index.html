@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Industrial Smart Monitor</title>
+    
+    <!-- MQTT Library -->
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    
+    <!-- Tailwind CSS (Industry Standard Styling Framework) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: Inter (Clean, Professional) -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Custom Scrollbar for logs */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #1e293b; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+    </style>
+</head>
+
+<body class="bg-slate-950 text-slate-200 min-h-screen p-4 md:p-8 font-sans">
+
+    <!-- DASHBOARD CONTAINER -->
+    <div class="max-w-7xl mx-auto space-y-6">
+
+        <!-- HEADER SECTION -->
+        <header class="flex flex-col md:flex-row justify-between items-center bg-slate-900/80 border border-slate-800 p-5 rounded-2xl shadow-2xl backdrop-blur-md sticky top-0 z-50">
+            <div class="flex items-center gap-4">
+                <div class="bg-indigo-600 p-2.5 rounded-lg shadow-lg shadow-indigo-500/20">
+                    <!-- CPU Icon SVG -->
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path></svg>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold tracking-tight text-white">SmartFacility<span class="text-indigo-500">OS</span></h1>
+                    <div class="flex items-center gap-2 text-xs text-slate-500 font-mono mt-0.5">
+                        <span id="status-indicator" class="w-2 h-2 rounded-full bg-red-500"></span>
+                        <span id="connection-text">DISCONNECTED</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-4 mt-4 md:mt-0">
+                <button onclick="startVoice()" id="voice-btn" class="group relative flex items-center gap-2 px-5 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl transition-all duration-200">
+                    <svg class="w-5 h-5 text-indigo-400 group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+                    <span class="font-medium text-sm">Voice Command</span>
+                    <span id="listening-indicator" class="hidden absolute top-2 right-2 flex h-2 w-2">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                    </span>
+                </button>
+            </div>
+        </header>
+
+        <!-- MAIN METRICS GRID -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+
+            <!-- Temperature Card -->
+            <div class="glass-panel rounded-2xl p-6 relative overflow-hidden group">
+                <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                    <svg class="w-24 h-24 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"></path></svg>
+                </div>
+                <h2 class="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2">Temperature</h2>
+                <div class="flex items-baseline gap-1">
+                    <span id="temp" class="text-5xl font-bold text-white tracking-tighter">--</span>
+                    <span class="text-xl text-slate-500 font-light">°C</span>
+                </div>
+                <div class="w-full bg-slate-700/50 h-1.5 mt-6 rounded-full overflow-hidden">
+                    <div id="temp-bar" class="h-full bg-gradient-to-r from-blue-500 to-red-500 w-0 transition-all duration-1000"></div>
+                </div>
+            </div>
+
+            <!-- Humidity Card -->
+            <div class="glass-panel rounded-2xl p-6 relative overflow-hidden group">
+                <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                    <svg class="w-24 h-24 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
+                </div>
+                <h2 class="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2">Humidity</h2>
+                <div class="flex items-baseline gap-1">
+                    <span id="hum" class="text-5xl font-bold text-cyan-400 tracking-tighter">--</span>
+                    <span class="text-xl text-slate-500 font-light">%</span>
+                </div>
+                <div class="flex justify-between text-[10px] text-slate-500 mt-6 uppercase font-bold tracking-wider">
+                    <span>Dry</span>
+                    <span>Wet</span>
+                </div>
+            </div>
+
+            <!-- Motion Card -->
+            <div class="glass-panel rounded-2xl p-6 relative overflow-hidden">
+                <h2 class="text-slate-400 text-xs font-bold uppercase tracking-widest mb-4">Security Alert</h2>
+                <div id="motion-container" class="flex flex-col items-center justify-center h-24 bg-slate-800/50 rounded-xl border border-slate-700 transition-all duration-500">
+                    <span id="motion-icon" class="text-3xl mb-2">🛡️</span>
+                    <span id="motion" class="text-sm font-mono text-emerald-400">SECURE</span>
+                </div>
+            </div>
+
+            <!-- LED Control -->
+            <div class="glass-panel rounded-2xl p-6 border-t-4 border-t-yellow-500">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h2 class="text-slate-400 text-xs font-bold uppercase tracking-widest">Lighting</h2>
+                        <p class="text-xs text-slate-500 mt-1">Main Room Spotlights</p>
+                    </div>
+                    <svg class="w-6 h-6 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+                </div>
+                <div class="grid grid-cols-2 gap-3 mt-6">
+                    <button onclick="ledOn()" class="bg-slate-800 hover:bg-slate-700 text-white py-2 rounded-lg font-medium transition-colors border border-slate-600 hover:border-yellow-500">ON</button>
+                    <button onclick="ledOff()" class="bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white py-2 rounded-lg font-medium transition-colors border border-slate-600">OFF</button>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- BOTTOM SECTION -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- Fan Control -->
+            <div class="glass-panel rounded-2xl p-6 border-t-4 border-t-cyan-500">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h2 class="text-slate-400 text-xs font-bold uppercase tracking-widest">HVAC System</h2>
+                        <p class="text-xs text-slate-500 mt-1">Air Circulation</p>
+                    </div>
+                    <svg id="fan-icon" class="w-6 h-6 text-cyan-500 transition-all duration-[2s]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5"></path></svg>
+                </div>
+                <div class="grid grid-cols-2 gap-3 mt-6">
+                    <button onclick="fanOn()" class="bg-slate-800 hover:bg-slate-700 text-white py-2 rounded-lg font-medium transition-colors border border-slate-600 hover:border-cyan-500">ACTIVATE</button>
+                    <button onclick="fanOff()" class="bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white py-2 rounded-lg font-medium transition-colors border border-slate-600">STANDBY</button>
+                </div>
+            </div>
+
+            <!-- Logs / Terminal -->
+            <div class="lg:col-span-2 bg-slate-900 rounded-2xl border border-slate-800 flex flex-col overflow-hidden h-48 shadow-inner">
+                <div class="bg-slate-950 px-4 py-2 border-b border-slate-800 flex items-center gap-2">
+                    <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    <span class="text-xs font-mono text-slate-400 font-bold">SYSTEM_LOGS</span>
+                </div>
+                <div id="logs" class="p-4 font-mono text-xs space-y-2 overflow-y-auto custom-scrollbar flex-1">
+                    <!-- Logs injected here -->
+                    <div class="text-slate-500">> System Initialized...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===== CONFIGURATION =====
+        const BROKER_URL = "wss://broker.hivemq.com:8884/mqtt";
+        const TOPICS = {
+            temp: "home/room1/temperature",
+            hum: "home/room1/humidity",
+            motion: "home/room1/motion",
+            led: "home/room1/leds/control",
+            fan: "home/room1/fan/control"
+        };
+
+        // ===== LOGGING SYSTEM =====
+        function log(msg, type='info') {
+            const logsDiv = document.getElementById('logs');
+            const entry = document.createElement('div');
+            const time = new Date().toLocaleTimeString();
+            
+            let color = 'text-slate-300';
+            if(type === 'error') color = 'text-red-400';
+            if(type === 'success') color = 'text-emerald-400';
+            if(type === 'cmd') color = 'text-indigo-400';
+
+            entry.className = `flex gap-2 ${color}`;
+            entry.innerHTML = `<span class="text-slate-600">[${time}]</span> <span>${msg}</span>`;
+            
+            logsDiv.prepend(entry);
+            if(logsDiv.children.length > 50) logsDiv.lastChild.remove();
+        }
+
+        // ===== MQTT CONNECTION =====
+        log('Connecting to MQTT Broker...', 'info');
+        const client = mqtt.connect(BROKER_URL);
+
+        client.on("connect", function () {
+            log('Connected to HiveMQ Broker', 'success');
+            document.getElementById('status-indicator').className = "w-2 h-2 rounded-full bg-emerald-500 animate-pulse";
+            document.getElementById('connection-text').innerText = "ONLINE";
+            document.getElementById('connection-text').className = "text-emerald-500 font-bold";
+
+            client.subscribe([TOPICS.temp, TOPICS.hum, TOPICS.motion], (err) => {
+                if(!err) log('Subscribed to sensors', 'success');
+            });
+        });
+
+        client.on("offline", function () {
+            document.getElementById('status-indicator').className = "w-2 h-2 rounded-full bg-red-500";
+            document.getElementById('connection-text').innerText = "OFFLINE";
+            document.getElementById('connection-text').className = "text-slate-500";
+            log('Connection Lost', 'error');
+        });
+
+        // ===== MESSAGE HANDLING =====
+        client.on("message", function (topic, message) {
+            const msg = message.toString();
+            
+            if (topic === TOPICS.temp) {
+                document.getElementById("temp").innerText = msg;
+                // Update bar width
+                const width = Math.min(Math.max(parseFloat(msg) * 2, 0), 100);
+                document.getElementById('temp-bar').style.width = width + '%';
+            }
+
+            if (topic === TOPICS.hum) {
+                document.getElementById("hum").innerText = msg;
+            }
+
+            if (topic === TOPICS.motion) {
+                const el = document.getElementById("motion-container");
+                const txt = document.getElementById("motion");
+                const icon = document.getElementById("motion-icon");
+                
+                if(msg.toLowerCase().includes('detect') || msg === "1") {
+                    el.className = "flex flex-col items-center justify-center h-24 bg-red-500/20 border border-red-500 rounded-xl animate-pulse";
+                    txt.innerText = "MOTION DETECTED";
+                    txt.className = "text-sm font-mono text-red-400 font-bold";
+                    icon.innerText = "🚨";
+                    log('Motion Detected!', 'error');
+                } else {
+                    el.className = "flex flex-col items-center justify-center h-24 bg-slate-800/50 rounded-xl border border-slate-700";
+                    txt.innerText = "AREA SECURE";
+                    txt.className = "text-sm font-mono text-emerald-400";
+                    icon.innerText = "🛡️";
+                }
+            }
+        });
+
+        // ===== CONTROLS =====
+        function ledOn() { 
+            client.publish(TOPICS.led, "on"); 
+            log('CMD: Lights ON', 'cmd');
+        }
+        function ledOff() { 
+            client.publish(TOPICS.led, "off"); 
+            log('CMD: Lights OFF', 'cmd');
+        }
+        function fanOn() { 
+            client.publish(TOPICS.fan, "on"); 
+            document.getElementById('fan-icon').classList.add('animate-spin');
+            log('CMD: Fan ON', 'cmd');
+        }
+        function fanOff() { 
+            client.publish(TOPICS.fan, "off"); 
+            document.getElementById('fan-icon').classList.remove('animate-spin');
+            log('CMD: Fan OFF', 'cmd');
+        }
+
+        // ===== VOICE CONTROL =====
+        function startVoice() {
+            const btn = document.getElementById('voice-btn');
+            const indicator = document.getElementById('listening-indicator');
+            
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                alert("Browser does not support Voice API");
+                return;
+            }
+
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            const recog = new SpeechRecognition();
+
+            recog.lang = "en-US";
+            recog.start();
+            
+            btn.classList.add('bg-indigo-600', 'text-white');
+            indicator.classList.remove('hidden');
+            log('Listening for voice command...', 'info');
+
+            recog.onresult = (event) => {
+                const command = event.results[0][0].transcript.toLowerCase();
+                log(`Voice: "${command}"`, 'cmd');
+
+                if (command.includes("fan on")) fanOn();
+                else if (command.includes("fan off")) fanOff();
+                else if (command.includes("light on") || command.includes("led on")) ledOn();
+                else if (command.includes("light off") || command.includes("led off")) ledOff();
+                else log(`Unknown command: ${command}`, 'error');
+            };
+
+            recog.onend = () => {
+                btn.classList.remove('bg-indigo-600', 'text-white');
+                indicator.classList.add('hidden');
+            };
+        }
+    </script>
+</body>
+</html>
